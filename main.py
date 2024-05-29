@@ -1,4 +1,3 @@
-
 import sqlite3
 import pandas as pd
 from radio_operator import RadioOperator
@@ -11,11 +10,18 @@ from urllib3.exceptions import MaxRetryError
 from requests.exceptions import ReadTimeout
 import argparse
 
-
+# Create an SQLite database engine
 engine = create_engine("sqlite:///checkins.db")
 
 
 def log_call_sign_orm(repeater: str, call_sign: str) -> None:
+    """
+    Log the call sign using SQLAlchemy ORM.
+    
+    Args:
+        repeater (str): The repeater being used.
+        call_sign (str): The call sign to log.
+    """
     with Session(engine) as session:
         try:
             operator = RadioOperator(call_sign, repeater)
@@ -26,7 +32,14 @@ def log_call_sign_orm(repeater: str, call_sign: str) -> None:
 
 
 def log_call_sign_pd(repeater: str, call_sign: str) -> None:
-    print("task started")
+    """
+    Log the call sign using Pandas and SQLite directly.
+    
+    Args:
+        repeater (str): The repeater being used.
+        call_sign (str): The call sign to log.
+    """
+    print("Task started")
     with sqlite3.connect("checkins.db") as db:
         try:
             operator = RadioOperator(call_sign, repeater)
@@ -43,19 +56,23 @@ def log_call_sign_pd(repeater: str, call_sign: str) -> None:
             print(f"TimeoutError: {str(e)}")
         except ReadTimeout as e:
             print(f"ReadTimeout: {str(e)}")
-
-    print("task complete")
+    print("Task complete")
 
 
 async def main(default_repeater: str = "VE7RVF", accept_default: bool = False):
+    """
+    Main function to handle user input and logging call signs.
+    
+    Args:
+        default_repeater (str): The default repeater to use.
+        accept_default (bool): Whether to accept the default repeater.
+    """
     loop = asyncio.get_running_loop()
-    if accept_default != False:
-        repeater = await aioconsole.ainput(f"Repeater (default: {default_repeater}): ")
-    else:
-        repeater = default_repeater
-    if not repeater or not repeater.strip():
-        repeater = default_repeater
+    repeater = default_repeater
+    if not accept_default:
+        repeater = await aioconsole.ainput(f"Repeater (default: {default_repeater}): ") or default_repeater
     print(f"Using repeater: {repeater}")
+
     while True:
         call_sign = await aioconsole.ainput("Callsign: ")
         call_sign = call_sign.strip().upper()
@@ -65,7 +82,7 @@ async def main(default_repeater: str = "VE7RVF", accept_default: bool = False):
 
 
 if __name__ == '__main__':
-    # Program Expenses
+    # Argument parser for command line options
     parser = argparse.ArgumentParser(
         prog='Net Control - Check-ins',
         description='Program that logs the check-ins.',
@@ -73,24 +90,24 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '-d', '--accept-defaults',
-        help="Accept default(s) (e.g. VA7RVF repeater)",
+        help="Accept default(s) (e.g. VE7RVF repeater)",
         action=argparse.BooleanOptionalAction
     )
     args = parser.parse_args()
 
-    # ORM
+    # Create all tables in the database
     Base.metadata.create_all(engine)
 
-    # Asyncio loop
+    # Start the asyncio event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     main_task = loop.create_task(main(accept_default=args.accept_defaults))
     try:
         loop.run_until_complete(main_task)
     except KeyboardInterrupt:
-        print("cancelled")
+        print("Cancelled")
     except EOFError:
-        print("cancelled during input")
+        print("Cancelled during input")
     finally:
         pending_tasks = asyncio.all_tasks(loop=loop)
         for task in pending_tasks:
